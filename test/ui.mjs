@@ -1,0 +1,57 @@
+import {chromium} from 'playwright';
+import {spawn} from 'node:child_process';
+import {once} from 'node:events';
+import assert from 'node:assert/strict';
+import {mkdir} from 'node:fs/promises';
+import {resolve} from 'node:path';
+const server=spawn(process.execPath,['server.mjs'],{env:{...process.env,PORT:'0'},stdio:['ignore','pipe','inherit']});
+const errors=[],offsite=[];
+let browser;
+try {
+  const [msg]=await once(server.stdout,'data');
+  const url=String(msg).trim().match(/http:\/\/127\.0\.0\.1:\d+/)?.[0]; assert.ok(url);
+  browser=await chromium.launch({headless:true,executablePath:process.env.CHROMIUM_PATH});
+  const page=await browser.newPage({viewport:{width:1440,height:900}});
+  page.on('pageerror',err=>errors.push(err.message));
+  page.on('request',req=>{if(!req.url().startsWith(url+'/'))offsite.push(new URL(req.url()).origin);});
+  await page.goto(url);
+  await page.getByRole('heading',{name:'Follow the evidence.'}).waitFor();
+  await page.getByRole('button',{name:'Replay',exact:true}).click();
+  await page.getByText('Replay complete').waitFor();
+  await page.getByRole('button',{name:'Inspect late-g2'}).click();
+  assert.match(await page.getByTestId('evidence').innerText(),/Gateway capture/);
+  await page.getByRole('button',{name:'Inspect late-b1'}).click();
+  assert.match(await page.getByTestId('evidence').innerText(),/Payer debit/);
+  assert.equal(await page.getByText('Settlement confirmed').count(),0);
+  await page.getByRole('slider').press('Home');
+  assert.equal(await page.getByRole('slider').inputValue(),'0');
+  assert.equal(await page.getByTestId('evidence').count(),0);
+  await page.getByRole('slider').press('End');
+  assert.equal(await page.getByRole('slider').inputValue(),'5');
+  await page.getByRole('button',{name:'Replay again'}).click();
+  await page.getByText('Replay running').waitFor();
+  const select=page.getByLabel('Scenario');
+  await select.selectOption('credit');
+  await page.getByRole('button',{name:'Replay',exact:true}).click();
+  await page.getByText('Replay complete').waitFor();
+  await page.getByText('Settlement confirmed',{exact:true}).waitFor();
+  await page.waitForTimeout(600); // beyond the canceled late fixture's entire replay
+  assert.equal(await page.getByText('Settlement confirmed',{exact:true}).count(),1);
+  assert.equal(await page.getByRole('slider').inputValue(),'4');
+  assert.equal(await page.getByRole('button',{name:'Inspect late-g2'}).count(),0);
+  await page.getByRole('button',{name:'Inspect credit-b2'}).click();
+  assert.match(await page.getByTestId('evidence').innerText(),/Merchant credit/);
+  const qa=resolve(process.env.QA_DIR??'test-output');
+  await mkdir(qa,{recursive:true});
+  await page.screenshot({path:resolve(qa,'desktop.png'),fullPage:true});
+  await page.setViewportSize({width:390,height:844});
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth),390);
+  await page.screenshot({path:resolve(qa,'mobile.png'),fullPage:true});
+  await page.setViewportSize({width:320,height:800});
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth),320);
+  assert.deepEqual(errors,[]);
+  assert.deepEqual(offsite,[]);
+  console.log('PASS: replay, citations, keyboard scrub, switching while replaying, settlement, 390/320px with no horizontal overflow, no offsite calls.');
+} finally {
+  await browser?.close();server.kill();
+}
