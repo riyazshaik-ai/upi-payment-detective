@@ -1,0 +1,1 @@
+{"compilerOptions":{"target":"ES2023","module":"NodeNext","moduleResolution":"NodeNext","strict":true,"outDir":"build","rootDir":"src","declaration":true,"skipLibCheck":true},"include":["src/engine.ts","src/fixtures.ts"]}

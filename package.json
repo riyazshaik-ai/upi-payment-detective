@@ -1,0 +1,27 @@
+{
+  "name": "upi-payment-detective",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.engine.json && tsc --noEmit && vite build",
+    "start": "node server.mjs",
+    "test": "node --test test/engine.test.mjs",
+    "test:browser": "node test/ui.mjs",
+    "pretest": "tsc -p tsconfig.engine.json"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "react": "19.1.1",
+    "react-dom": "19.1.1"
+  },
+  "devDependencies": {
+    "@types/react": "19.1.12",
+    "@types/react-dom": "19.1.9",
+    "vite": "6.4.2",
+    "typescript": "5.9.2",
+    "playwright": "1.56.1"
+  }
+}
